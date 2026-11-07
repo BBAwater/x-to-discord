@@ -4,10 +4,14 @@ on:
   schedule:
     # 5分おきに自動実行
     - cron: "*/5 * * * *"
-  workflow_dispatch: # GitHubの画面から手動でもテスト実行できるようにする
+  workflow_dispatch: # 手動またはAPI経由で即時実行できるようにする
 
 permissions:
   contents: write # last_tweets.json の変更をコミット＆プッシュするために必要
+
+concurrency:
+  group: x-to-discord-check
+  cancel-in-progress: false
 
 jobs:
   check-tweets:
@@ -32,7 +36,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add last_tweets.json
           if ! git diff --cached --quiet; then
-            git commit -m "chore: update last_tweets.json [skip ci]"
+            git commit -m "chore: update last_tweets.json"
             git push
           else
             echo "No new tweets to update."
