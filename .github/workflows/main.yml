@@ -1,0 +1,39 @@
+name: X to Discord Forwarder
+
+on:
+  schedule:
+    # 5分おきに自動実行
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # GitHubの画面から手動でもテスト実行できるようにする
+
+permissions:
+  contents: write # last_tweets.json の変更をコミット＆プッシュするために必要
+
+jobs:
+  check-tweets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check new tweets and send to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python x_to_discord.py
+
+      - name: Commit and push updated last_tweets.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add last_tweets.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update last_tweets.json [skip ci]"
+            git push
+          else
+            echo "No new tweets to update."
+          fi
