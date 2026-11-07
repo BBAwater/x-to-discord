@@ -46,17 +46,23 @@ def fetch_user_tweets(username: str) -> list[dict]:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "X-No-Cache": "true",
+        "X-With-Links-Summary": "true",
     }
 
     req = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=25) as response:
+        with urllib.request.urlopen(req, timeout=30) as response:
             body = response.read().decode("utf-8", errors="ignore")
 
-            # https://x.com/<username>/status/<id> の形式からツイートIDを抽出
-            pattern = rf"https://x\.com/{re.escape(username)}/status/(\d+)"
-            raw_ids = re.findall(pattern, body, flags=re.IGNORECASE)
-            unique_ids = list(dict.fromkeys(raw_ids))
+            # 1) https://x.com/<username>/status/<id> の形式
+            pattern_status = rf"https://x\.com/{re.escape(username)}/status/(\d+)"
+            ids_status = re.findall(pattern_status, body, flags=re.IGNORECASE)
+
+            # 2) https://x.com/compose/post?in_reply_to=<id> の形式（各ポストのリプライボタンに含まれるID）
+            pattern_reply = r"in_reply_to=(\d+)"
+            ids_reply = re.findall(pattern_reply, body, flags=re.IGNORECASE)
+
+            unique_ids = list(dict.fromkeys(ids_status + ids_reply))
 
             tweets = []
             for tid in unique_ids:
@@ -114,6 +120,7 @@ def check_and_notify():
     for username in TARGET_USERS:
         tweets = fetch_user_tweets(username)
         if not tweets:
+            print(f"[WARN] @{username} のツイート一覧が空でした。", flush=True)
             continue
 
         last_id = state.get(username)
@@ -138,7 +145,7 @@ def check_and_notify():
         new_tweets = [t for t in tweets if int(t["id"]) > int(last_id)]
 
         if not new_tweets:
-            print(f"[INFO] @{username} の新規ポストはありません（最新ID: {last_id}）。", flush=True)
+            print(f"[INFO] @{username} の新規ポストはありません（最新記録ID: {last_id} / 取得最新ID: {tweets[-1]['id']}）。", flush=True)
 
         for tweet in new_tweets:
             print(f"[NEW] @{username} の新規ツイートを検出: {tweet['url']}", flush=True)
